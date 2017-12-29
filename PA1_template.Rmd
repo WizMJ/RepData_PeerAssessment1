@@ -1,25 +1,116 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: 'Reproducible Research: Peer Assessment 1'
+keep_md: yes
 ---
 
-
-## Loading and preprocessing the data
-
-
+Let's load the data and see how the dataset looks like.
+## Loading and preprocessing the data  
+```{r echo=TRUE}
+setwd("D:/01 Minki Philosophy/10 Data Science/08 github/coursera/5. reproducible research/RepData_PeerAssessment1")
+library(ggplot2)
+unzip(zipfile = "activity.zip")
+data <- read.csv("activity.csv")
+dim(data)
+colnames(data)
+```
+Data consists of 17,568 observations and 3 variables.
 
 ## What is mean total number of steps taken per day?
 
+Let's answer the questions below:  
+- Calculate the total number of steps taken per day  
+- Make a histogram of the total number of steps taken each day  
+- Calculate and report the mean and median of the total number of steps taken per day  
 
+```{r}
+steps.daysum <- sapply(split(data$steps,data$date), sum, na.rm = TRUE)
+steps.daysum <- data.frame(date=names(steps.daysum), steps=steps.daysum, row.names =NULL)
+ggplot(steps.daysum, aes(x = steps)) + geom_histogram(binwidth = 500)+ ggtitle("Histogram of Steps per day")
+```
+
+```{r echo=TRUE}
+median(steps.daysum$steps)
+mean(steps.daysum$steps)
+```
 
 ## What is the average daily activity pattern?
 
+Let's make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
 
+```{r}
+steps.intavg <- sapply(split(data$steps, data$interval), mean, na.rm=TRUE)
+steps.intavg <- data.frame(interval=as.numeric(names(steps.intavg)), steps=steps.intavg, row.names =NULL)
+ggplot(data = steps.intavg, aes(x = interval, y = steps)) + geom_line() + xlab("5-minute interval") + ylab("average number of steps taken")+ggtitle("Average Daily Activity Pattern")
+```
+
+Now, let's find the 5-minute interval that has the maximum number of steps.
+
+```{r}
+max.value <- max(steps.intavg$steps)
+max.value
+steps.intavg[which.max(steps.intavg$steps),1]
+```
+**the `835th` interval has the maximum value of steps, `206.17`**
 
 ## Imputing missing values
 
+Let's see how many missing values are in the dataset.
+```{r}
+sum(is.na(data$steps))
+sum(is.na(data$date))
+sum(is.na(data$interval))
+```
 
+**Only the data in steps column is missing, which misses `2,304` rows.**   
+We need to impute the missing values in steps column. It might be reasonable to say that data with the same time a day is related to each other in different day. Let's use the mean values for each interval calculated above. For your information, the data a day consists of 288 rows and all days are the same.
+
+```{r}
+data.fill <- data
+data.fill <- merge(data.fill, steps.intavg, all.x = TRUE, by = "interval")
+na.row <- is.na(data.fill$steps.x)
+data.fill[na.row,"steps.x"] <- data.fill[na.row, "steps.y"]
+data.fill <- data.frame(steps = data.fill$steps.x, date = data.fill$date, interval = data.fill$interval)
+sum(is.na(data.fill))
+```
+
+**`data.fill` dataset is the same format as original dataset, but all missing values are imputed by means of the same interval.**
+
+Let's creat a histogram of the total number of steps taken each day
+
+```{r}
+steps.daysum <- sapply(split(data.fill$steps,data.fill$date), sum, na.rm = TRUE)
+steps.daysum <- data.frame(date=names(steps.daysum), steps=steps.daysum, row.names =NULL)
+ggplot(steps.daysum, aes(x = steps)) + geom_histogram(binwidth = 500)+ ggtitle("Histogram of Steps per day (no missing data)")
+```
+
+Now let's calculate the mean and median total number of steps taken per day with fill-in dataset
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+median(steps.daysum$steps)
+mean(steps.daysum$steps)
+```
+
+**Comparing results from fill-in dataset with original one,   
++ median values is almost the same as the each other, but mean values are quite different.  
++ What impacts the most the difference is the count of 0 steps per day is mostly calculated into the guessing numbers**
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Now, let's find the patterns by weekdays and weekends. In order to do that, new variable that represents either weekdays or weekends should be created to match the date. The dataset that fills in missing data is used for this part.
+
+```{r echo=TRUE}
+Sys.setlocale("LC_TIME", "English")
+data.fill$days <- weekdays(as.Date(data.fill$date))
+data.fill$daytype <- ifelse(data.fill$days %in% c("Saturday","Sunday"), "weekend","weekday")
+```
+
+
+```{r echo=TRUE}
+steps.intavg.day <- aggregate(steps ~ interval + daytype, data=data.fill, mean)
+g <- ggplot(steps.intavg.day, aes(x = interval, y =steps))
+g + geom_line()+ facet_grid(daytype~.) + xlab("5-minute interval") + ylab("average number of steps taken")+ggtitle("Average Daily Activity Pattern between Weekday and Weekend")
+```
+
+We can see the slightly different patterns between weekday and weekend.
+
+
